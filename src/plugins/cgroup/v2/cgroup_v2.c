@@ -743,11 +743,40 @@ static int _init_stepd_system_scope(pid_t pid)
 	return SLURM_SUCCESS;
 }
 
+/* This create path recursively.*/
+bool recurse_mkdir(const char *dirname, int mode)
+{
+	const char *p = dirname;
+	char *temp = calloc(1, strlen(dirname)+1);
+	int ret = 0;
+
+	while ((p = strchr(p, '/')) != NULL) {
+		/* Skip empty elements. Could be just multiple separators
+		 * which is okay. */
+		if (p != dirname && *(p-1) == '/') {
+			p++;
+			continue;
+		}
+		/* Put the path up to this point into a temporary to
+		 * pass to the make directory function. */
+		memcpy(temp, dirname, p-dirname);
+		temp[p-dirname] = '\0';
+		p++;
+		if ((ret = mkdir(temp, mode)) != 0) {
+			if (errno != EEXIST) {
+				break;
+			}
+		}
+	}
+	free(temp);
+	return ret;
+}
+
 static int _init_new_scope(char *scope_path)
 {
 	int rc;
 
-	rc = mkdir(scope_path, 0755);
+	rc = recurse_mkdir(scope_path, 0755);
 	if (rc && (errno != EEXIST)) {
 		error("Could not create scope directory %s: %m", scope_path);
 		return SLURM_ERROR;
